@@ -1,0 +1,132 @@
+---
+title: "reporte"
+author: "Sebastián Alcívar"
+date: "2 de agosto de 2015"
+output: html_document
+---
+##Regresión lineal multiple
+
+###Introducción
+Se realizará un modelo de regresión lineal multiple usando los datos población1 y población3 usando las variables disponibles en las tablas.
+
+###Lectura de los datos
+
+```{r}
+library(readxl)
+poblacion1 <- read_excel("poblacion1.xlsx",col_names = TRUE, na="")
+poblacion2 <- read_excel("poblacion2.xlsx",col_names = TRUE, na="")
+```
+
+Y se unirá la información en una sola tabla, con los siguientes datos
+
+```{r, echo=FALSE}
+library(DT)
+poblacion21<-poblacion2
+poblacion21 <- rbind(poblacion21,data.frame(identificador=1024,part.almz.escl=NA, var.ingresos=NA,tasa.crimen=NA,var.tasa.crimen=NA,region=NA,serv.bas.compl=NA))
+poblacion21 <- rbind(poblacion21,data.frame(identificador=1025,part.almz.escl=NA, var.ingresos=NA,tasa.crimen=NA,var.tasa.crimen=NA,region=NA,serv.bas.compl=NA))
+poblacion21 <- rbind(poblacion21,data.frame(identificador=1030,part.almz.escl=NA, var.ingresos=NA,tasa.crimen=NA,var.tasa.crimen=NA,region=NA,serv.bas.compl=NA))
+poblacion21 <- rbind(poblacion21,data.frame(identificador=1043,part.almz.escl=NA, var.ingresos=NA,tasa.crimen=NA,var.tasa.crimen=NA,region=NA,serv.bas.compl=NA))
+poblacion <- merge(poblacion1,poblacion21)
+datatable(poblacion)
+```
+
+###Modelo
+
+Se ralizará el modelo de regresión lineal multiple.
+
+Ajustando el modelo `r names(poblacion)[2]` en función de `r names(poblacion)[3]`, `r names(poblacion)[4]`, `r names(poblacion)[5]`, `r names(poblacion)[6]`, `r names(poblacion)[7]`, `r names(poblacion)[8]`, `r names(poblacion)[9]`, `r names(poblacion)[10]`. Usaremos la función `lm()` obteniendo el siguiente resultado:
+
+```{r,echo=TRUE,eval=TRUE}
+clase <- lapply(poblacion, class)
+reg_num<-poblacion[,clase=="numeric"]
+regresores <- reg_num[,-1]
+regresion<-lm(poblacion~.,regresores)
+summary(regresion)
+```
+
+Ahora debemos seleccionar los regresores significativos y realizar nuevamente el modelo usando únicamente esas variables
+
+
+```{r,echo=TRUE,eval=TRUE}
+reg<-step(regresion,direction="backward")
+summary(reg)
+```
+
+Y obtenemos que el modelo de regresión lineal múltiple que
+mejor se ajusta a nuestros datos es el siguiente:
+
+$$ \hat{`r substring(names(poblacion)[2],1,2)`} =`r reg$coefficients[1]` 
+`r reg$coefficients[2]`  \hat{`r substring(names(poblacion)[7],1,2)`} $$
+
+### Interpretación
+
+El modelo solo depende de un regresor y su interpretación es
+
+__Interpretación modelo:__ _Por cada unidad que se aumenta en `r names(poblacion)[7]`,  `r names(poblacion)[2]` `r tex <-"aumenta"; if(reg$coefficients[2]<0) (tex<-"disminuye");tex` en promedio `r abs(reg$coefficients[2])`_
+
+__Interpretación $R^2$:__ _El modelo de regresión lineal obtenido explica el `r paste(100*summary(reg)$r.squared,"%")` de la variabilidad total._
+
+### Pruebas de hipótesis
+
+__Para el intercepto__ 
+
+Commo  $t= `r summary(reg)$coefficients[1,3]`$ es `r tex<-"menor"; if(summary(reg)$coefficients[1,3]>qt(0.975 , df =nrow(poblacion)-6)) tex<-"mayor"; tex` que  $t_{`r (nrow(poblacion)-6)`}(\frac{\alpha}{2})= `r qt(0.975 , df =nrow(poblacion)-6)`$ `r tex<-" no rechazo"; if(summary(reg)$coefficients[1,3]>qt(0.975 , df =nrow(poblacion)-6)) tex<-" rechazo"; tex` $H_0:$ intercepto $= 0$.
+
+__Para el coeficiente de tasa.crimen__ 
+
+Como  $|t|=|`r summary(reg)$coefficients[2,3]`|$ es `r tex<-"menor"; if(abs(summary(reg)$coefficients[2,3])>qt(0.975 , df =nrow(poblacion)-6)) tex<-"mayor"; tex` que $t_{`r (nrow(poblacion)-6)`}(\frac{\alpha}{2})= `r qt(0.975 , df =nrow(poblacion)-6)`$ `r tex<-" no rechazo"; if(abs(summary(reg)$coefficients[1,3])>qt(0.975 , df =nrow(poblacion)-6)) tex<-" rechazo"; tex` $H_0:`r substring(names(poblacion)[7],1,2)` =0$.
+
+### Análisis de varianza
+
+Realizando la tabla __ANOVA__ tenemos los siguientes resultados:
+
+```{r,echo=TRUE,eval=TRUE}
+t_anova <- aov(reg)
+summary(t_anova)
+```
+
+Como $F=`r summary(t_anova)[[1]][1,4]`$ es `r tex<-"menor"; if(summary(t_anova)[[1]][1,4]>qf(0.95,1,(nrow(poblacion)-6))) tex<-"mayor"; tex` que $F_{1,`r (nrow(poblacion)-6)`}(\frac{\alpha}{2})= `r qf(0.95,1,(nrow(poblacion)-6))`$ la regresión
+`r tex<-"no es significativa"; if(summary(t_anova)[[1]][1,4]>qf(0.95,1,(nrow(poblacion)-6))) tex<-"es significativa"; tex`
+
+### Intervalos de confianza
+
+
+```{r,echo=TRUE,eval=TRUE}
+confint(reg,level=0.95)
+```
+
+### Gráficos residuales
+
+```{r}
+p<-merge(poblacion1,poblacion2)
+residuo <- reg[["residuals"]]
+prediccion <- reg[["fitted.values"]]
+data <- data.frame(poblacion=p[,"poblacion"],tasa.crimen=p[,"tasa.crimen"], prediccion,residuo)
+datatable(data,filter="top", options = list(searching = TRUE,  
+pageLength = 5, lengthMenu = c(5, 10, 15)))
+
+```
+
+```{r, fig.align="center",fig.width=5,fig.height=4}
+hist(residuo,15)
+#Tiene cierta tendencia normal con media cero
+mean(residuo)
+#la media de los residuos es prácticamente cero, por lo que no viola las hipotesis de normalidad
+qqnorm(residuo)
+qqline(residuo,col="red")
+#presenta linealidad y se puede considerar adecuado
+
+plot(residuo,prediccion)
+plot(residuo,data[,"tasa.crimen"])
+#Al parecer los datos si se encuentran dentro de una franja en ambos casos, por lo que no se
+#evidencia alguna violación de las hipotesis
+
+plot(data[,"poblacion"],data[,"tasa.crimen"])
+#Se observa una tendencia lineal prácticamente horizontal como lo muestra su coeficiente de
+#regresion bastante cercano a cero
+
+plot(residuo,data[,"poblacion"])
+```
+
+###Conclusiones
+El modelo de regresión lineal comenzaba estimando con 6 regresores, después de los análisis correspondientes se determinó que sólo es significativo un solo regresor que es el `r names(poblacion)[7] ` y determinando el modelo antes mencionado. Entonces puede decirse que la `r names(poblacion)[2] ` depende linealmente de `r names(poblacion)[7] `.
